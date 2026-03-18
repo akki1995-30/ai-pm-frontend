@@ -4,6 +4,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { Mail, Lock, User, Zap } from "lucide-react";
 import { REGISTER_MUTATION, ME_QUERY } from "../lib/graphql";
 import { useAuth } from "../context/AuthContext";
+import logger from "../lib/logger";
 
 export const RegisterPage: React.FC = () => {
   const [form, setForm] = useState({ name: "", email: "", password: "" });
@@ -14,29 +15,39 @@ export const RegisterPage: React.FC = () => {
 
   const [register, { loading }] = useMutation(REGISTER_MUTATION, {
     onCompleted: async (data) => {
+      logger.info("RegisterPage", `registration successful — email: ${data.register.user.email}`);
       localStorage.setItem("token", data.register.token);
       try {
+        logger.debug("RegisterPage", "fetching user profile via ME query to resolve role");
         const { data: meData } = await apolloClient.query({
           query: ME_QUERY,
           fetchPolicy: "network-only",
         });
+        logger.info("RegisterPage", `role resolved: ${meData?.me?.role}`);
         login(data.register.token, {
           ...data.register.user,
           role: meData?.me?.role,
         });
-      } catch {
+      } catch (meErr) {
+        logger.warn("RegisterPage", "ME query failed — proceeding without role", meErr);
         login(data.register.token, data.register.user);
       }
       navigate("/dashboard");
     },
-    onError: (err) => setError(err.message),
+    onError: (err) => {
+      logger.error("RegisterPage", `registration failed: ${err.message}`);
+      setError(err.message);
+    },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    if (!form.name || !form.email || !form.password)
+    logger.debug("RegisterPage", `form submitted — name: ${form.name}, email: ${form.email}`);
+    if (!form.name || !form.email || !form.password) {
+      logger.warn("RegisterPage", "validation failed — missing required fields");
       return setError("All fields are required");
+    }
     register({ variables: { input: form } });
   };
 

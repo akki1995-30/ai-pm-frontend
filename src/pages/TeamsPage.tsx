@@ -5,6 +5,7 @@ import { Plus, Users, ArrowRight, Loader2 } from "lucide-react";
 import { GET_TEAMS, CREATE_TEAM } from "../lib/graphql";
 import { Modal } from "../components/Modal";
 import { useAuth } from "../context/AuthContext";
+import logger from "../lib/logger";
 
 interface Team {
   _id: string;
@@ -20,28 +21,45 @@ export const TeamsPage: React.FC = () => {
   const [form, setForm] = useState({ name: "", description: "" });
   const [formError, setFormError] = useState("");
 
-  const { data, loading, error, refetch } = useQuery(GET_TEAMS);
+  logger.debug("TeamsPage", `rendered — user: ${user?.name}, role: ${user?.role}, canCreateTeam: ${canCreateTeam}`);
+
+  const { data, loading, error, refetch } = useQuery(GET_TEAMS, {
+    onCompleted: (d) => logger.info("TeamsPage", `GET_TEAMS succeeded — ${d?.teams?.length ?? 0} team(s) loaded`),
+    onError: (e) => logger.error("TeamsPage", `GET_TEAMS failed: ${e.message}`),
+  });
 
   const [createTeam, { loading: creating }] = useMutation(CREATE_TEAM, {
-    onCompleted: () => {
+    onCompleted: (d) => {
+      logger.info("TeamsPage", `team created — id: ${d?.createTeam?._id}, name: ${d?.createTeam?.name}`);
       setShowModal(false);
       setForm({ name: "", description: "" });
       refetch();
     },
-    onError: (err) => setFormError(err.message),
+    onError: (err) => {
+      logger.error("TeamsPage", `CREATE_TEAM failed: ${err.message}`);
+      setFormError(err.message);
+    },
   });
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
     setFormError("");
-    if (!form.name.trim()) return setFormError("Team name is required");
+    logger.debug("TeamsPage", `createTeam submitted — name: ${form.name}`);
+    if (!form.name.trim()) {
+      logger.warn("TeamsPage", "createTeam blocked — team name is empty");
+      return setFormError("Team name is required");
+    }
     createTeam({
       variables: { input: { name: form.name, description: form.description } },
     });
   };
 
   const teams: Team[] = data?.teams || [];
-  console.log("teams", teams);
+
+  const handleTeamClick = (team: Team) => {
+    logger.info("TeamsPage", `navigating to projects — teamId: ${team._id}, name: ${team.name}`);
+    navigate(`/dashboard/projects/${team._id}`);
+  };
 
   return (
     <div>
@@ -115,7 +133,7 @@ export const TeamsPage: React.FC = () => {
               key={team._id}
               className="card"
               style={styles.teamCard}
-              onClick={() => navigate(`/dashboard/projects/${team._id}`)}
+              onClick={() => handleTeamClick(team)}
             >
               <div style={styles.teamCardTop}>
                 <div style={styles.teamAvatar}>

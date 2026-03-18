@@ -4,6 +4,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { Mail, Lock, Zap } from "lucide-react";
 import { LOGIN_MUTATION, ME_QUERY } from "../lib/graphql";
 import { useAuth } from "../context/AuthContext";
+import logger from "../lib/logger";
 
 export const LoginPage: React.FC = () => {
   const [form, setForm] = useState({ email: "", password: "" });
@@ -14,30 +15,39 @@ export const LoginPage: React.FC = () => {
 
   const [loginMutation, { loading }] = useMutation(LOGIN_MUTATION, {
     onCompleted: async (data) => {
-      // Temporarily store token so the me query can use it
+      logger.info("LoginPage", `login successful — email: ${data.login.user.email}`);
       localStorage.setItem("token", data.login.token);
       try {
+        logger.debug("LoginPage", "fetching user profile via ME query to resolve role");
         const { data: meData } = await apolloClient.query({
           query: ME_QUERY,
           fetchPolicy: "network-only",
         });
+        logger.info("LoginPage", `role resolved: ${meData?.me?.role}`);
         login(data.login.token, {
           ...data.login.user,
           role: meData?.me?.role,
         });
-      } catch {
+      } catch (meErr) {
+        logger.warn("LoginPage", "ME query failed — proceeding without role", meErr);
         login(data.login.token, data.login.user);
       }
       navigate("/dashboard");
     },
-    onError: (err) => setError(err.message),
+    onError: (err) => {
+      logger.error("LoginPage", `login failed: ${err.message}`);
+      setError(err.message);
+    },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    if (!form.email || !form.password)
+    logger.debug("LoginPage", `form submitted — email: ${form.email}`);
+    if (!form.email || !form.password) {
+      logger.warn("LoginPage", "validation failed — missing email or password");
       return setError("All fields are required");
+    }
     loginMutation({ variables: { input: form } });
   };
 
