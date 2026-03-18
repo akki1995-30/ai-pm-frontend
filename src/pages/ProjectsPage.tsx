@@ -11,6 +11,7 @@ import {
 import { GET_PROJECTS, CREATE_PROJECT, GET_TEAM_MEMBERS } from "../lib/graphql";
 import { Modal } from "../components/Modal";
 import { useAuth } from "../context/AuthContext";
+import logger from "../lib/logger";
 
 interface Project {
   _id: string;
@@ -27,10 +28,14 @@ export const ProjectsPage: React.FC = () => {
   const [form, setForm] = useState({ name: "", description: "" });
   const [formError, setFormError] = useState("");
 
+  logger.debug("ProjectsPage", `rendered — teamId: ${teamId}, user: ${user?.name}, role: ${user?.role}`);
+
   // Fetch team members to check current user's team role
   const { data: membersData } = useQuery(GET_TEAM_MEMBERS, {
     variables: { teamId },
     skip: !teamId,
+    onCompleted: (d) => logger.debug("ProjectsPage", `GET_TEAM_MEMBERS — ${d?.teamMembers?.length ?? 0} member(s)`),
+    onError: (e) => logger.error("ProjectsPage", `GET_TEAM_MEMBERS failed: ${e.message}`),
   });
   const myTeamMembership = membersData?.teamMembers?.find(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -42,26 +47,41 @@ export const ProjectsPage: React.FC = () => {
   const { data, loading, error, refetch } = useQuery(GET_PROJECTS, {
     variables: { teamId },
     skip: !teamId,
+    onCompleted: (d) => logger.info("ProjectsPage", `GET_PROJECTS — ${d?.projects?.length ?? 0} project(s) loaded`),
+    onError: (e) => logger.error("ProjectsPage", `GET_PROJECTS failed: ${e.message}`),
   });
 
   const [createProject, { loading: creating }] = useMutation(CREATE_PROJECT, {
-    onCompleted: () => {
+    onCompleted: (d) => {
+      logger.info("ProjectsPage", `project created — id: ${d?.createProject?._id}, name: ${d?.createProject?.name}`);
       setShowModal(false);
       setForm({ name: "", description: "" });
       refetch();
     },
-    onError: (err) => setFormError(err.message),
+    onError: (err) => {
+      logger.error("ProjectsPage", `CREATE_PROJECT failed: ${err.message}`);
+      setFormError(err.message);
+    },
   });
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
     setFormError("");
-    if (!form.name.trim()) return setFormError("Project name is required");
+    logger.debug("ProjectsPage", `createProject submitted — name: ${form.name}, teamId: ${teamId}`);
+    if (!form.name.trim()) {
+      logger.warn("ProjectsPage", "createProject blocked — project name is empty");
+      return setFormError("Project name is required");
+    }
     createProject({
       variables: {
         input: { name: form.name, description: form.description, teamId },
       },
     });
+  };
+
+  const handleProjectClick = (project: Project) => {
+    logger.info("ProjectsPage", `navigating to tasks — projectId: ${project._id}, name: ${project.name}`);
+    navigate(`/dashboard/tasks/${project._id}`);
   };
 
   const projects: Project[] = data?.projects || [];
@@ -145,7 +165,7 @@ export const ProjectsPage: React.FC = () => {
               key={project._id}
               className="card"
               style={styles.projectCard}
-              onClick={() => navigate(`/dashboard/tasks/${project._id}`)}
+              onClick={() => handleProjectClick(project)}
             >
               <div style={styles.projectCardTop}>
                 <div style={styles.projectIcon}>

@@ -22,6 +22,7 @@ import {
 } from "../lib/graphql";
 import { Modal } from "../components/Modal";
 import { useAuth } from "../context/AuthContext";
+import logger from "../lib/logger";
 
 type TaskStatus = "todo" | "in_progress" | "done";
 
@@ -87,6 +88,8 @@ export const TasksPage: React.FC = () => {
   const { data: projectData } = useQuery(GET_PROJECT, {
     variables: { projectId },
     skip: !projectId,
+    onCompleted: (d) => logger.debug("TasksPage", `GET_PROJECT — teamId: ${d?.project?.team}`),
+    onError: (e) => logger.error("TasksPage", `GET_PROJECT failed: ${e.message}`),
   });
   const teamId = projectData?.project?.team;
 
@@ -94,6 +97,8 @@ export const TasksPage: React.FC = () => {
   const { data: membersData } = useQuery(GET_TEAM_MEMBERS, {
     variables: { teamId },
     skip: !teamId,
+    onCompleted: (d) => logger.debug("TasksPage", `GET_TEAM_MEMBERS — ${d?.teamMembers?.length ?? 0} member(s)`),
+    onError: (e) => logger.error("TasksPage", `GET_TEAM_MEMBERS failed: ${e.message}`),
   });
   const members: Member[] = membersData?.teamMembers || [];
 
@@ -104,32 +109,52 @@ export const TasksPage: React.FC = () => {
   const canCreateTask = isAdmin || myTeamRole === "MANAGER" || myTeamRole === "MEMBER";
   const canDeleteTask = isAdmin || myTeamRole === "MANAGER";
 
+  logger.debug("TasksPage", `permissions — teamRole: ${myTeamRole}, canCreateTask: ${canCreateTask}, canDeleteTask: ${canDeleteTask}`);
+
   const { data, loading, error, refetch } = useQuery(GET_TASKS, {
     variables: { projectId },
     skip: !projectId,
+    onCompleted: (d) => logger.info("TasksPage", `GET_TASKS — ${d?.tasks?.length ?? 0} task(s) loaded`),
+    onError: (e) => logger.error("TasksPage", `GET_TASKS failed: ${e.message}`),
   });
 
   const [createTask, { loading: creating }] = useMutation(CREATE_TASK, {
-    onCompleted: () => {
+    onCompleted: (d) => {
+      logger.info("TasksPage", `task created — id: ${d?.createTask?._id}, title: ${d?.createTask?.title}`);
       setShowModal(false);
       setForm({ title: "", description: "", assignedTo: "" });
       refetch();
     },
-    onError: (err) => setFormError(err.message),
+    onError: (err) => {
+      logger.error("TasksPage", `CREATE_TASK failed: ${err.message}`);
+      setFormError(err.message);
+    },
   });
 
   const [updateTask] = useMutation(UPDATE_TASK, {
-    onCompleted: () => refetch(),
+    onCompleted: (d) => {
+      logger.info("TasksPage", `task updated — id: ${d?.updateTask?._id}, status: ${d?.updateTask?.status}`);
+      refetch();
+    },
+    onError: (e) => logger.error("TasksPage", `UPDATE_TASK failed: ${e.message}`),
   });
 
   const [deleteTask] = useMutation(DELETE_TASK, {
-    onCompleted: () => refetch(),
+    onCompleted: () => {
+      logger.info("TasksPage", "task deleted successfully");
+      refetch();
+    },
+    onError: (e) => logger.error("TasksPage", `DELETE_TASK failed: ${e.message}`),
   });
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
     setFormError("");
-    if (!form.title.trim()) return setFormError("Task title is required");
+    logger.debug("TasksPage", `createTask submitted — title: ${form.title}, assignedTo: ${form.assignedTo || "none"}`);
+    if (!form.title.trim()) {
+      logger.warn("TasksPage", "createTask blocked — title is empty");
+      return setFormError("Task title is required");
+    }
     createTask({
       variables: {
         input: {
@@ -143,15 +168,18 @@ export const TasksPage: React.FC = () => {
   };
 
   const handleStatusCycle = (task: Task) => {
+    const nextStatus = STATUS_NEXT[task.status];
+    logger.debug("TasksPage", `status cycle — taskId: ${task._id}, ${task.status} → ${nextStatus}`);
     updateTask({
       variables: {
         taskId: task._id,
-        input: { status: STATUS_NEXT[task.status] },
+        input: { status: nextStatus },
       },
     });
   };
 
   const handleDelete = (taskId: string) => {
+    logger.info("TasksPage", `deleting task — taskId: ${taskId}`);
     setOpenMenuId(null);
     deleteTask({ variables: { taskId } });
   };

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState } from "react";
+import logger from "../lib/logger";
 
 interface AuthUser {
   id: string;
@@ -18,13 +19,24 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem("token"));
+  const [token, setToken] = useState<string | null>(() => {
+    const stored = localStorage.getItem("token");
+    logger.debug("AuthContext", stored ? "hydrated token from localStorage" : "no token in localStorage");
+    return stored;
+  });
+
   const [user, setUser] = useState<AuthUser | null>(() => {
     const stored = localStorage.getItem("user");
-    return stored ? JSON.parse(stored) : null;
+    if (stored) {
+      const parsed = JSON.parse(stored) as AuthUser;
+      logger.debug("AuthContext", `hydrated user from localStorage`, { name: parsed.name, role: parsed.role });
+      return parsed;
+    }
+    return null;
   });
 
   const login = (newToken: string, newUser: AuthUser) => {
+    logger.info("AuthContext", `login — user: ${newUser.name}, role: ${newUser.role ?? "unknown"}`);
     localStorage.setItem("token", newToken);
     localStorage.setItem("user", JSON.stringify(newUser));
     setToken(newToken);
@@ -32,6 +44,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
+    logger.info("AuthContext", `logout — user: ${user?.name ?? "unknown"}`);
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     setToken(null);

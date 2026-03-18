@@ -9,6 +9,7 @@ import {
   Shield,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import logger from "../lib/logger";
 
 const NAV_ITEMS = [
   { to: "/dashboard/teams",    icon: <Users size={18} />,       label: "Teams" },
@@ -26,7 +27,10 @@ export const DashboardLayout: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
+  logger.debug("DashboardLayout", `rendered — user: ${user?.name}, role: ${user?.role}`);
+
   const handleLogout = () => {
+    logger.info("DashboardLayout", `logout triggered by user: ${user?.name}`);
     logout();
     navigate("/login");
   };

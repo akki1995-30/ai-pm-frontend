@@ -5,6 +5,9 @@ import './index.css';
 import App from './App.tsx';
 import { client } from './lib/apolloClient';
 import { AuthProvider } from './context/AuthContext';
+import logger from './lib/logger';
+
+logger.info("main", "FlowBoard app bootstrapping...");
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -15,3 +18,5 @@ createRoot(document.getElementById('root')!).render(
     </ApolloProvider>
   </StrictMode>,
 );
+
+logger.info("main", "app mounted successfully");

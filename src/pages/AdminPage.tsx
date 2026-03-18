@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useQuery, useMutation } from "@apollo/client";
 import { Shield, Loader2, CheckCircle2, XCircle, ChevronDown } from "lucide-react";
 import { GET_USERS, ASSIGN_ROLE, SET_USER_STATUS } from "../lib/graphql";
+import logger from "../lib/logger";
 
 interface AppUser {
   _id: string;
@@ -24,24 +25,38 @@ const ROLE_COLORS: Record<string, { bg: string; color: string }> = {
 export const AdminPage: React.FC = () => {
   const [search, setSearch] = useState("");
 
+  logger.debug("AdminPage", "rendered");
+
   const { data, loading, error, refetch } = useQuery(GET_USERS, {
     fetchPolicy: "network-only",
+    onCompleted: (d) => logger.info("AdminPage", `GET_USERS — ${d?.users?.length ?? 0} user(s) loaded`),
+    onError: (e) => logger.error("AdminPage", `GET_USERS failed: ${e.message}`),
   });
 
   const [assignRole] = useMutation(ASSIGN_ROLE, {
-    onCompleted: () => refetch(),
+    onCompleted: (d) => {
+      logger.info("AdminPage", `role assigned — userId: ${d?.assignRole?._id}, role: ${d?.assignRole?.role}`);
+      refetch();
+    },
+    onError: (e) => logger.error("AdminPage", `ASSIGN_ROLE failed: ${e.message}`),
   });
 
   const [setUserStatus] = useMutation(SET_USER_STATUS, {
-    onCompleted: () => refetch(),
+    onCompleted: (d) => {
+      logger.info("AdminPage", `status updated — userId: ${d?.setUserStatus?._id}, status: ${d?.setUserStatus?.status}`);
+      refetch();
+    },
+    onError: (e) => logger.error("AdminPage", `SET_USER_STATUS failed: ${e.message}`),
   });
 
   const handleRoleChange = (userId: string, role: string) => {
+    logger.debug("AdminPage", `role change requested — userId: ${userId}, role: ${role}`);
     assignRole({ variables: { userId, role } });
   };
 
   const handleToggleStatus = (userId: string, currentStatus: string) => {
     const next = currentStatus === "active" ? "inactive" : "active";
+    logger.debug("AdminPage", `status toggle — userId: ${userId}, ${currentStatus} → ${next}`);
     setUserStatus({ variables: { userId, status: next } });
   };
 
