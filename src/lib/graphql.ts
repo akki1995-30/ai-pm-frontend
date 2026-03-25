@@ -60,6 +60,20 @@ export const CREATE_TEAM = gql`
   }
 `;
 
+export const ADD_TEAM_MEMBER = gql`
+  mutation AddTeamMember($teamId: ID!, $userId: ID!, $role: String!) {
+    addTeamMember(teamId: $teamId, userId: $userId, role: $role) {
+      _id role user { _id name email }
+    }
+  }
+`;
+
+export const REMOVE_TEAM_MEMBER = gql`
+  mutation RemoveTeamMember($teamId: ID!, $userId: ID!) {
+    removeTeamMember(teamId: $teamId, userId: $userId)
+  }
+`;
+
 // ─── PROJECTS ────────────────────────────────────────────────────────────────
 
 export const GET_PROJECTS = gql`

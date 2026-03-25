@@ -65,6 +65,7 @@ export const App: React.FC = () => {
           <Route path="projects" element={<ProjectsPage />} />
           <Route path="projects/:teamId" element={<ProjectsPage />} />
           <Route path="tasks/:projectId" element={<TasksPage />} />
+          <Route path="tasks/:teamId/:projectId" element={<TasksPage />} />
           <Route
             path="admin"
             element={<AdminRoute><AdminPage /></AdminRoute>}
